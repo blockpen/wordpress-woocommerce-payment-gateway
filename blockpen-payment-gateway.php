@@ -1,52 +1,45 @@
 <?php
 
 /**
- * Plugin Name: BLOCKPEN PAYMENT GATEWAY
- * Plugin URI:  https://blockpen.tech/plugins/wp/payment
- * Description: Blockpen plugin for Wordpress to enable seamless as PayPal, semi-centralized online payments with cryptocurrencies
+ * Plugin Name: Blockpen Payment Gateway
+ * Plugin URI:  https://commerce.blockpen.tech
+ * Description: A secured and decentralized (as it should be) payment gateway that allows your consumers to pay with cryptocurrencies.
  * Version:     0.0.1
  * Author:      Blockpen
  * Author URI:  https://blockpen.tech/
  */
 
 function pluginprefix_setup_post_type() {
-    // register the "book" custom post type
     register_post_type( 'book', ['public' => 'true'] );
 }
 add_action( 'init', 'pluginprefix_setup_post_type' );
  
 function pluginprefix_install() {
-    // trigger our function that registers the custom post type
     pluginprefix_setup_post_type();
  
-    // clear the permalinks after the post type has been registered
     flush_rewrite_rules();
 }
 register_activation_hook( __FILE__, 'pluginprefix_install' );
 
 
 function pluginprefix_deactivation() {
-    // unregister the post type, so the rules are no longer in memory
     unregister_post_type( 'book' );
-    // clear the permalinks to remove our post type's rules from the database
     flush_rewrite_rules();
 }
 register_deactivation_hook( __FILE__, 'pluginprefix_deactivation' );
 
 function my_theme_scripts_function() {
-    wp_enqueue_script( 'blockpen', 'http://localhost:8080/v1/lib/blockpen.js', false);
+    wp_enqueue_script( 'blockpen', 'https://alpha.blockpen.tech/v1/lib/blockpen.js', false);
 }
 add_action('wp_enqueue_scripts','my_theme_scripts_function');
 
-// <?php
-if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
+if ( ! defined( 'ABSPATH' ) ) exit;
 
 add_action( 'plugins_loaded', 'blockpen_gateway_load', 0 );
 
 function blockpen_gateway_load() {
 
     if ( ! class_exists( 'WC_Payment_Gateway' ) ) {
-        // oops!
         return;
     }
 
@@ -82,18 +75,14 @@ function blockpen_gateway_load() {
             $this->method_title = __( 'Blockpen', 'woocommerce' );
             $this->ipn_url      = add_query_arg( 'wc-api', 'WC_Gateway_blockpen', home_url( '/' ) );
 
-            // Load the settings.
             $this->init_form_fields();
             $this->init_settings();
 
-            // Define user set variables
             $this->title       = $this->get_option( 'title' );
             $this->description = $this->get_option( 'description' );
 
-            // Logs
             $this->log = new WC_Logger();
 
-            // Actions
             add_action( 'woocommerce_receipt_blockpen', array( $this, 'receipt_page' ) );
             add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'process_admin_options' ) );
         }
@@ -105,7 +94,6 @@ function blockpen_gateway_load() {
 
             <table class="form-table">
             <?php
-            // Generate the HTML For the settings form.
             $this->generate_settings_html();
             ?>
             </table><!--/.form-table-->;
@@ -121,7 +109,6 @@ function blockpen_gateway_load() {
             $icon_html  = '';
             $methods = ['eth', 'stellar', 'token'];
 
-            // Load icon for each available payment method.
             for ($m = 0; $m < sizeof($methods); $m++ ) {
                 $path = $image_path . '/' . $methods[$m] . '.png';
                 $url        = WC_HTTPS::force_https_url( plugins_url( '/assets/' . $methods[$m] . '.png', __FILE__ ) );
@@ -156,36 +143,7 @@ function blockpen_gateway_load() {
                     'title'   => __( 'Description', 'woocommerce' ),
                     'type'    => 'textarea',
                     'default' => __( 'Pay with Ethereum, Stellar and Any tokens with Blockpen', 'woocommerce' )
-                ),
-                'webhook_secret' => array(
-                    'title'       => __( 'Webhook Shared Secret', 'blockpen' ),
-                    'type'        => 'text',
-                    'description' =>
-    
-                    // translators: Instructions for setting up 'webhook shared secrets' on settings page.
-                    __( 'Using webhooks allows blockpen Commerce to send payment confirmation messages to the website. To fill this out:', 'blockpen' )
-    
-                    . '<br /><br />' .
-    
-                    // translators: Step 1 of the instructions for 'webhook shared secrets' on settings page.
-                    __( '1. In your blockpen Commerce settings page, scroll to the \'Webhook subscriptions\' section', 'blockpen' )
-    
-                    . '<br />' .
-    
-                    // translators: Step 2 of the instructions for 'webhook shared secrets' on settings page. Includes webhook URL.
-                    sprintf( __( '2. Click \'Add an endpoint\' and paste the following URL: %s', 'blockpen' ), add_query_arg( 'wc-api', 'WC_Gateway_blockpen', home_url( '/', 'https' ) ) )
-    
-                    . '<br />' .
-    
-                    // translators: Step 3 of the instructions for 'webhook shared secrets' on settings page.
-                    __( '3. Make sure to select "Send me all events", to receive all payment updates.', 'blockpen' )
-    
-                    . '<br />' .
-    
-                    // translators: Step 4 of the instructions for 'webhook shared secrets' on settings page.
-                    __( '4. Click "Show shared secret" and paste into the box above.', 'blockpen' ),
-    
-                ),
+                )
             );
         }
 
@@ -205,26 +163,19 @@ function blockpen_gateway_load() {
                 $order->billing_phone = str_replace( array( '( ', '-', ' ', ' )', '.' ), '', $order->billing_phone );
             }
 
-            // blockpen.tech Args
             $blockpen_args = array(
                 'merchant'    => $this->merchant_id,
                 'allow_extra' => 0,
-                // Get the currency from the order, not the active currency
-                // NOTE: for backward compatibility with WC 2.6 and earlier,
-                // $order->get_order_currency() should be used instead
                 'currency'    => $order->get_currency(),
                 'reset'       => 1,
                 'success_url' => $this->get_return_url( $order ),
                 'cancel_url'  => esc_url_raw($order->get_cancel_order_url_raw()),
 
-                // Order key + ID
                 'invoice' => $this->invoice_prefix . $order->get_order_number(),
                 'custom'  => serialize( array( $order->id, $order->order_key ) ),
 
-                // IPN
                 'ipn_url' => $this->ipn_url,
 
-                // Billing Address info
                 'first_name' => $order->billing_first_name,
                 'last_name'  => $order->billing_last_name,
                 'email'      => $order->billing_email,
@@ -285,7 +236,7 @@ function blockpen_gateway_load() {
                 $order->update_status('pending', 'Customer is being redirected to blockpen...');
             }
 
-            $blockpen_adr = "http://localhost:8080/woocommerce/pay?";
+            $blockpen_adr = "https://alpha.blockpen.tech/woocommerce/pay?";
                         
             $blockpen_args = $this->get_blockpen_args( $order );
             $blockpen_args["total"] = $order->total;
@@ -365,9 +316,6 @@ function blockpen_gateway_load() {
                 if ($order !== FALSE) {
                     if ($_POST['ipn_type'] == "button" || $_POST['ipn_type'] == "simple") {
                         if ($_POST['merchant'] == $this->merchant_id) {
-                            // Get the currency from the order, not the active currency
-                            // NOTE: for backward compatibility with WC 2.6 and earlier,
-                            // $order->get_order_currency() should be used instead
                             if ($_POST['currency1'] == $order->get_currency()) {
                                 if ($_POST['amount1'] >= $order->get_total()) {
                                     print "IPN check OK\n";
@@ -417,7 +365,6 @@ function blockpen_gateway_load() {
 
             $posted = stripslashes_deep( $posted );
 
-            // Custom holds post ID
             if (!empty($_POST['invoice']) && !empty($_POST['custom'])) {
                 $order = $this->get_blockpen_order( $posted );
 
@@ -425,7 +372,6 @@ function blockpen_gateway_load() {
                 $order->add_order_note('blockpen.tech Payment Status: '.$posted['status_text']);
 
                 if ( $order->status != 'completed' && get_post_meta( $order->id, 'blockpen payment complete', true ) != 'Yes' ) {
-                        // no need to update status if it's already done
                     if ( ! empty( $posted['txn_id'] ) )
                         update_post_meta( $order->id, 'Transaction ID', $posted['txn_id'] );
                     if ( ! empty( $posted['first_name'] ) )
@@ -462,7 +408,6 @@ function blockpen_gateway_load() {
         function get_blockpen_order( $posted ) {
             $custom = maybe_unserialize( stripslashes_deep($posted['custom']) );
 
-            // Backwards comp for IPN requests
             if ( is_numeric( $custom ) ) {
                 $order_id = (int) $custom;
                 $order_key = $posted['invoice'];
@@ -476,12 +421,10 @@ function blockpen_gateway_load() {
             $order = new WC_Order( $order_id );
 
             if ( ! isset( $order->id ) ) {
-                // We have an invalid $order_id, probably because invoice_prefix has changed
                 $order_id       = woocommerce_get_order_id_by_order_key( $order_key );
                 $order          = new WC_Order( $order_id );
             }
 
-            // Validate key
             if ( $order->order_key !== $order_key ) {
                 return FALSE;
             }
