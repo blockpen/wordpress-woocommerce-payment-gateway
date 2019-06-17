@@ -37,9 +37,9 @@ function blockpen_paygate_load() {
     /**
      * Add the gateway to WooCommerce.
      */
-    add_filter( 'woocommerce_payment_gateways', 'wc_blockpen_paygate' );
+    add_filter( 'woocommerce_payment_gateways', 'wc_blockpen_paygate_load' );
 
-    function wc_blockpen_paygate( $methods ) {
+    function wc_blockpen_paygate_load( $methods ) {
         if (!in_array('WC_Blockpen_PayGate', $methods)) {
             $methods[] = 'WC_Blockpen_PayGate';
         }
@@ -47,7 +47,7 @@ function blockpen_paygate_load() {
     }
 
 
-    class WC_Blockpen_PayGate {
+    class WC_Blockpen_PayGate extends WC_Payment_Gateway {
 
         var $ipn_url;
 
@@ -96,14 +96,13 @@ function blockpen_paygate_load() {
          * @return string html to insert images
          */
         public function get_icon() {
-            $image_path = wp_uploads_dir().'/blockpen_pg/';
-            echo $image_path;
+            $image_path = plugins_url().'/assets/';
             $icon_html  = '';
             $methods = ['eth', 'stellar', 'token'];
 
             for ($m = 0; $m < sizeof($methods); $m++ ) {
                 $path = $image_path . '/' . $methods[$m] . '.png';
-                $url        = WC_HTTPS::force_https_url( wp_uploads_dir( '/blockpen_pg/' . $methods[$m] . '.png', __FILE__ ) );
+                $url        = WC_HTTPS::force_https_url( plugins_url( '/assets/' . $methods[$m] . '.png', __FILE__ ) );
                 $icon_html .= '<img width="26" src="' . esc_attr( $url ) . '"/>';
             }
 
@@ -151,62 +150,15 @@ function blockpen_paygate_load() {
 
             $order_id = $order->id;
 
-            if ( in_array( $order->billing_country, array( 'US','CA' ) ) ) {
-                $order->billing_phone = str_replace( array( '( ', '-', ' ', ' )', '.' ), '', $order->billing_phone );
-            }
-
             $blockpen_args = array(
                 'merchant'    => $this->merchant_id,
-                'allow_extra' => 0,
                 'currency'    => $order->get_currency(),
-                'reset'       => 1,
                 'success_url' => $this->get_return_url( $order ),
                 'cancel_url'  => esc_url_raw($order->get_cancel_order_url_raw()),
-
-                'invoice' => $this->invoice_prefix . $order->get_order_number(),
-                'custom'  => serialize( array( $order->id, $order->order_key ) ),
-
-                'ipn_url' => $this->ipn_url,
-
                 'first_name' => $order->billing_first_name,
                 'last_name'  => $order->billing_last_name,
                 'email'      => $order->billing_email,
             );
-
-            if ($this->send_shipping == 'yes') {
-                $blockpen_args = array_merge($blockpen_args, array(
-                    'want_shipping' => 1,
-                    'address1'      => $order->billing_address_1,
-                    'address2'      => $order->billing_address_2,
-                    'city'          => $order->billing_city,
-                    'state'         => $order->billing_state,
-                    'zip'           => $order->billing_postcode,
-                    'country'       => $order->billing_country,
-                    'phone'         => $order->billing_phone,
-                ));
-            } else {
-                $blockpen_args['want_shipping'] = 0;
-            }
-
-            if ($this->simple_total) {
-                $blockpen_args['item_name'] = sprintf( __( 'Order %s' , 'woocommerce'), $order->get_order_number() );
-                $blockpen_args['quantity']  = 1;
-                $blockpen_args['amountf']   = number_format( $order->get_total(), 8, '.', '' );
-                $blockpen_args['taxf']      = 0.00;
-                $blockpen_args['shippingf'] = 0.00;
-            } else if ( wc_tax_enabled() && wc_prices_include_tax() ) {
-                $blockpen_args['item_name'] = sprintf( __( 'Order %s' , 'woocommerce'), $order->get_order_number() );
-                $blockpen_args['quantity']  = 1;
-                $blockpen_args['amountf']   = number_format( $order->get_total() - $order->get_total_shipping() - $order->get_shipping_tax(), 8, '.', '' );
-                $blockpen_args['shippingf'] = number_format( $order->get_total_shipping() + $order->get_shipping_tax() , 8, '.', '' );
-                $blockpen_args['taxf']      = 0.00;
-            } else {
-                $blockpen_args['item_name'] = sprintf( __( 'Order %s' , 'woocommerce'), $order->get_order_number() );
-                $blockpen_args['quantity']  = 1;
-                $blockpen_args['amountf']   = number_format( $order->get_total() - $order->get_total_shipping() - $order->get_total_tax(), 8, '.', '' );
-                $blockpen_args['shippingf'] = number_format( $order->get_total_shipping(), 8, '.', '' );
-                $blockpen_args['taxf']      = $order->get_total_tax();
-            }
 
             $blockpen_args = apply_filters( 'woocommerce_blockpen_args', $blockpen_args );
 
@@ -363,14 +315,18 @@ function blockpen_paygate_load() {
                 $this->log->add( 'blockpen', 'Order #'.$order->id.' payment status: ' . $posted['status_text'] );
                 $order->add_order_note('blockpen.tech Payment Status: '.$posted['status_text']);
 
+                echo  $posted['txn_id'];
                 if ( $order->status != 'completed' && get_post_meta( $order->id, 'blockpen payment complete', true ) != 'Yes' ) {
                     if ( ! empty( $posted['txn_id'] ) )
                         update_post_meta( $order->id, 'Transaction ID', $posted['txn_id'] );
-                    if ( ! empty( $posted['first_name'] ) )
+
+                    if ( ! empty( $posted['first_name'] ) && sanitize_text_field( $posted['first_name'] ) )
                         update_post_meta( $order->id, 'Payer first name', $posted['first_name'] );
-                    if ( ! empty( $posted['last_name'] ) )
+
+                    if ( ! empty( $posted['last_name'] ) && sanitize_text_field( $posted['last_name'] ) )
                         update_post_meta( $order->id, 'Payer last name', $posted['last_name'] );
-                    if ( ! empty( $posted['email'] ) )
+
+                    if ( ! empty( $posted['email'] ) && is_email( $posted['email'] ) )
                         update_post_meta( $order->id, 'Payer email', $posted['email'] );
 
                     if ($posted['status'] >= 100 || $posted['status'] == 2 || ($this->allow_zero_confirm && $posted['status'] >= 0 && $posted['received_confirms'] > 0 && $posted['received_amount'] >= $posted['amount2'])) {
