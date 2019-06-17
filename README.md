@@ -5,7 +5,7 @@
 - Requires at least: 3.0
 - Requires PHP: 5.6
 - Tested up to: 5.2.1
-- Stable tag: 0.0.2
+- Stable tag: 0.0.3
 - License: GPLv2 or later
 
 ## Description
@@ -84,6 +84,6 @@ To use this plugin with your WooCommerce store you will need:
 
 ## Changelog
 
-### 0.0.2 
+### 0.0.3
 * Blockpen Gateway
 * Tested WP 5.2.1
