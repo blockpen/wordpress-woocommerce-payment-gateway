@@ -33,7 +33,7 @@ A secured and decentralized (as it should be) payment gateway that allow you acc
 = Configuring Blockpen Gateway =
 
 * You will need to set up an account on https://console.blockpen.tech
-* Within the WordPress administration area, go to the WooCommerce > Settings > Payments page and you will see Coinbase in the table of payment gateways.
+* Within the WordPress administration area, go to the WooCommerce > Settings > Payments page and you will see Blockpen in the table of payment gateways.
 * Clicking the Manage button on the right hand side will take you into the settings page, where you can configure the plugin for your store.
 
 **Note: If you are running version of WooCommerce older than 3.4.x your Blockpen Gateway tab will be underneath the WooCommerce > Settings > Checkout tab**
@@ -54,7 +54,7 @@ Description of the payment method on the checkout page
 
 = What cryptocurrencies does the plugin support?
 
-The plugin supports all cryptocurrencies available at https://commerce.coinbase.com/
+The plugin supports all cryptocurrencies available at https://commerce.blockpen.tech/
 
 = Prerequisites=
 

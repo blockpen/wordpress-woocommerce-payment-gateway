@@ -4,59 +4,50 @@
  * Plugin Name: Blockpen Payment Gateway
  * Plugin URI:  https://commerce.blockpen.tech
  * Description: A secured and decentralized (as it should be) payment gateway that allows your consumers to pay with cryptocurrencies.
- * Version:     0.0.1
+ * Version:     0.0.3
  * Author:      Blockpen
  * Author URI:  https://blockpen.tech/
  */
 
-function pluginprefix_setup_post_type() {
+function blockpen_paygate_setup_post_type() {
     register_post_type( 'book', ['public' => 'true'] );
 }
-add_action( 'init', 'pluginprefix_setup_post_type' );
+add_action( 'init', 'blockpen_paygate_setup_post_type' );
  
-function pluginprefix_install() {
-    pluginprefix_setup_post_type();
+function blockpen_paygate_install() {
+    blockpen_paygate_setup_post_type();
  
     flush_rewrite_rules();
 }
-register_activation_hook( __FILE__, 'pluginprefix_install' );
+register_activation_hook( __FILE__, 'blockpen_paygate_install' );
 
 
-function pluginprefix_deactivation() {
+function blockpen_paygate_deactivation() {
     unregister_post_type( 'book' );
     flush_rewrite_rules();
 }
-register_deactivation_hook( __FILE__, 'pluginprefix_deactivation' );
-
-function my_theme_scripts_function() {
-    wp_enqueue_script( 'blockpen', 'https://alpha.blockpen.tech/v1/lib/blockpen.js', false);
-}
-add_action('wp_enqueue_scripts','my_theme_scripts_function');
+register_deactivation_hook( __FILE__, 'blockpen_paygate_deactivation' );
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-add_action( 'plugins_loaded', 'blockpen_gateway_load', 0 );
+add_action( 'plugins_loaded', 'blockpen_paygate_load', 0 );
 
-function blockpen_gateway_load() {
-
-    if ( ! class_exists( 'WC_Payment_Gateway' ) ) {
-        return;
-    }
+function blockpen_paygate_load() {
 
     /**
      * Add the gateway to WooCommerce.
      */
-    add_filter( 'woocommerce_payment_gateways', 'wcblockpen_add_gateway' );
+    add_filter( 'woocommerce_payment_gateways', 'wc_blockpen_paygate' );
 
-    function wcblockpen_add_gateway( $methods ) {
-        if (!in_array('WC_Gateway_blockpen', $methods)) {
-            $methods[] = 'WC_Gateway_blockpen';
+    function wc_blockpen_paygate( $methods ) {
+        if (!in_array('WC_Blockpen_PayGate', $methods)) {
+            $methods[] = 'WC_Blockpen_PayGate';
         }
         return $methods;
     }
 
 
-    class WC_Gateway_blockpen extends WC_Payment_Gateway {
+    class WC_Blockpen_PayGate {
 
         var $ipn_url;
 
@@ -73,7 +64,7 @@ function blockpen_gateway_load() {
             $this->icon         = $this->get_icon();
             $this->has_fields   = false;
             $this->method_title = __( 'Blockpen', 'woocommerce' );
-            $this->ipn_url      = add_query_arg( 'wc-api', 'WC_Gateway_blockpen', home_url( '/' ) );
+            $this->ipn_url      = add_query_arg( 'wc-api', 'WC_Blockpen_PayGate', home_url( '/' ) );
 
             $this->init_form_fields();
             $this->init_settings();
@@ -105,13 +96,14 @@ function blockpen_gateway_load() {
          * @return string html to insert images
          */
         public function get_icon() {
-            $image_path = plugins_url().'/assets/';
+            $image_path = wp_uploads_dir().'/blockpen_pg/';
+            echo $image_path;
             $icon_html  = '';
             $methods = ['eth', 'stellar', 'token'];
 
             for ($m = 0; $m < sizeof($methods); $m++ ) {
                 $path = $image_path . '/' . $methods[$m] . '.png';
-                $url        = WC_HTTPS::force_https_url( plugins_url( '/assets/' . $methods[$m] . '.png', __FILE__ ) );
+                $url        = WC_HTTPS::force_https_url( wp_uploads_dir( '/blockpen_pg/' . $methods[$m] . '.png', __FILE__ ) );
                 $icon_html .= '<img width="26" src="' . esc_attr( $url ) . '"/>';
             }
 
@@ -434,9 +426,9 @@ function blockpen_gateway_load() {
 
     }
 
-    class WC_blockpen extends WC_Gateway_blockpen {
+    class WC_blockpen extends WC_Blockpen_PayGate {
         public function __construct() {
-            _deprecated_function( 'WC_blockpen', '1.4', 'WC_Gateway_blockpen' );
+            _deprecated_function( 'WC_blockpen', '1.4', 'WC_Blockpen_PayGate' );
             parent::__construct();
         }
     }
