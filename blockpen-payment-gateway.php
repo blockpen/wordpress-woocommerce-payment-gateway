@@ -4,10 +4,12 @@
  * Plugin Name: Blockpen Payment Gateway
  * Plugin URI:  https://commerce.blockpen.tech
  * Description: A secured and decentralized (as it should be) payment gateway that allows your consumers to pay with cryptocurrencies.
- * Version:     0.0.3
+ * Version:     0.0.4
  * Author:      Blockpen
  * Author URI:  https://blockpen.tech/
  */
+
+if ( ! defined( 'ABSPATH' ) ) exit;
 
 function blockpen_paygate_setup_post_type() {
     register_post_type( 'book', ['public' => 'true'] );
@@ -27,8 +29,6 @@ function blockpen_paygate_deactivation() {
     flush_rewrite_rules();
 }
 register_deactivation_hook( __FILE__, 'blockpen_paygate_deactivation' );
-
-if ( ! defined( 'ABSPATH' ) ) exit;
 
 add_action( 'plugins_loaded', 'blockpen_paygate_load', 0 );
 
@@ -96,13 +96,11 @@ function blockpen_paygate_load() {
          * @return string html to insert images
          */
         public function get_icon() {
-            $image_path = plugins_url().'/assets/';
             $icon_html  = '';
             $methods = ['eth', 'stellar', 'token'];
 
             for ($m = 0; $m < sizeof($methods); $m++ ) {
-                $path = $image_path . '/' . $methods[$m] . '.png';
-                $url        = WC_HTTPS::force_https_url( plugins_url( '/assets/' . $methods[$m] . '.png', __FILE__ ) );
+                $url        = WC_HTTPS::force_https_url( 'https://blockpen.tech/wp_assets/' . $methods[$m] . '.png' );
                 $icon_html .= '<img width="26" src="' . esc_attr( $url ) . '"/>';
             }
 
