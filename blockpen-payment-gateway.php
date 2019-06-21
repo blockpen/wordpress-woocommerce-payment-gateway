@@ -4,7 +4,7 @@
  * Plugin Name: Blockpen Payment Gateway
  * Plugin URI:  https://commerce.blockpen.tech
  * Description: A secured and decentralized (as it should be) payment gateway that allows your consumers to pay with cryptocurrencies.
- * Version:     0.0.5
+ * Version:     0.0.6
  * Author:      Blockpen
  * Author URI:  https://blockpen.tech/
  */
@@ -61,7 +61,7 @@ function blockpen_paygate_load() {
             global $woocommerce;
 
             $this->id           = 'blockpen';
-            $this->icon         = $this->get_icon();
+            // $this->icon         = $this->get_icon();
             $this->has_fields   = false;
             $this->method_title = __( 'Blockpen', 'woocommerce' );
             $this->ipn_url      = add_query_arg( 'wc-api', 'WC_Blockpen_PayGate', home_url( '/' ) );
@@ -95,12 +95,12 @@ function blockpen_paygate_load() {
         /**
          * @return string of <img> html to show payment currencies
          */
-        public function get_icon() {
-            $icon_html  = '';
-            $icon_html .= '<img src="' . esc_url( 'https://blockpen.tech/wp_assets/payment_icons.png' ) . '"/>';
+        // public function get_icon() {
+        //     $icon_html  = '';
+        //     $icon_html .= '<img src="' . esc_url( 'https://blockpen.tech/wp_assets/payment_icons.png' ) . '"/>';
 
-            return apply_filters( 'woocommerce_blockpen_icon', $icon_html, $this->id );
-        }
+        //     return apply_filters( 'woocommerce_blockpen_icon', $icon_html, $this->id );
+        // }
 
         /**
          * Initialise Gateway Settings Form Fields
@@ -220,85 +220,6 @@ function blockpen_paygate_load() {
             echo '<p>'.__( 'Thank you for your order, please click the button below to pay with blockpen.tech.', 'woocommerce' ).'</p>';
 
             echo $this->generate_blockpen_form( $order );
-        }
-
-        /**
-         * Check blockpen.tech IPN validity
-         **/
-        function check_ipn_request_is_valid() {
-            global $woocommerce;
-
-            $order = false;
-            $error_msg = "Unknown error";
-            $auth_ok = false;
-
-            if (isset($_POST['ipn_mode']) && $_POST['ipn_mode'] == 'hmac') {
-                if (isset($_SERVER['HTTP_HMAC']) && !empty($_SERVER['HTTP_HMAC'])) {
-                    $request = file_get_contents('php://input');
-                    if ($request !== FALSE && !empty($request)) {
-                        if (isset($_POST['merchant']) && $_POST['merchant'] == trim($this->merchant_id)) {
-                            $hmac = hash_hmac("sha512", $request, trim($this->ipn_secret));
-                            if ($hmac == $_SERVER['HTTP_HMAC']) {
-                                $auth_ok = true;
-                            } else {
-                                $error_msg = 'HMAC signature does not match';
-                            }
-                        } else {
-                            $error_msg = 'No or incorrect Merchant ID passed';
-                        }
-                    } else {
-                        $error_msg = 'Error reading POST data';
-                    }
-                } else {
-                    $error_msg = 'No HMAC signature sent.';
-                }
-            } else {
-                $error_msg = "Unknown IPN verification method.";
-            }
-
-            if ($auth_ok) {
-                if (!empty($_POST['invoice']) && !empty($_POST['custom'])) {
-                    $order = $this->get_blockpen_order( $_POST );
-                }
-
-                if ($order !== FALSE) {
-                    if ($_POST['ipn_type'] == "button" || $_POST['ipn_type'] == "simple") {
-                        if ($_POST['merchant'] == $this->merchant_id) {
-                            if ($_POST['currency1'] == $order->get_currency()) {
-                                if ($_POST['amount1'] >= $order->get_total()) {
-                                    print "IPN check OK\n";
-                                    return true;
-                                } else {
-                                    $error_msg = "Amount received is less than the total!";
-                                }
-                            } else {
-                                $error_msg = "Original currency doesn't match!";
-                            }
-                        } else {
-                            $error_msg = "Merchant ID doesn't match!";
-                        }
-                    } else {
-                        $error_msg = "ipn_type != button or simple";
-                    }
-                } else {
-                    $error_msg = "Could not find order info for order: ".$_POST['invoice'];
-                }
-            }
-
-            $report = "Error Message: ".$error_msg."\n\n";
-
-            $report .= "POST Fields\n\n";
-            foreach ($_POST as $key => $value) {
-                $report .= $key.'='.$value."\n";
-            }
-
-            if ($order) {
-                $order->update_status('on-hold', sprintf( __( 'blockpen.tech IPN Error: %s', 'woocommerce' ), $error_msg ) );
-            }
-            if (!empty($this->debug_email)) { mail($this->debug_email, "blockpen.tech Invalid IPN", $report); }
-            mail(get_option( 'admin_email' ), sprintf( __( 'blockpen.tech Invalid IPN', 'woocommerce' ), $error_msg ), $report );
-            die('Error: '.$error_msg);
-            return false;
         }
 
         /**
