@@ -4,7 +4,7 @@ Tags: blockpen, woo, woocommerce, ecommerce, bitcoin, ethereum, blockchain, comm
 Requires at least: 3.0
 Requires PHP: 5.6
 Tested up to: 5.2.1
-Stable tag: 0.0.4
+Stable tag: 0.0.5
 License: GPLv2 or later
 
 == Description ==
@@ -71,6 +71,6 @@ To use this plugin with your WooCommerce store you will need:
 
 == Changelog ==
 
-= 0.0.4 =
+= 0.0.5 =
 * Blockpen Gateway
 * Tested WP 5.2.1

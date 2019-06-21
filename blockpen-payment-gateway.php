@@ -4,7 +4,7 @@
  * Plugin Name: Blockpen Payment Gateway
  * Plugin URI:  https://commerce.blockpen.tech
  * Description: A secured and decentralized (as it should be) payment gateway that allows your consumers to pay with cryptocurrencies.
- * Version:     0.0.4
+ * Version:     0.0.5
  * Author:      Blockpen
  * Author URI:  https://blockpen.tech/
  */
@@ -93,16 +93,11 @@ function blockpen_paygate_load() {
         }
 
         /**
-         * @return string html to insert images
+         * @return string of <img> html to show payment currencies
          */
         public function get_icon() {
             $icon_html  = '';
-            $methods = ['eth', 'stellar', 'token'];
-
-            for ($m = 0; $m < sizeof($methods); $m++ ) {
-                $url        = WC_HTTPS::force_https_url( 'https://blockpen.tech/wp_assets/' . $methods[$m] . '.png' );
-                $icon_html .= '<img width="26" src="' . esc_attr( $url ) . '"/>';
-            }
+            $icon_html .= '<img src="' . esc_url( 'https://blockpen.tech/wp_assets/payment_icons.png' ) . '"/>';
 
             return apply_filters( 'woocommerce_blockpen_icon', $icon_html, $this->id );
         }
@@ -151,16 +146,24 @@ function blockpen_paygate_load() {
             $blockpen_args = array(
                 'merchant'    => $this->merchant_id,
                 'currency'    => $order->get_currency(),
-                'success_url' => $this->get_return_url( $order ),
+                'success_url' => esc_url_raw($this->get_return_url( $order )),
                 'cancel_url'  => esc_url_raw($order->get_cancel_order_url_raw()),
                 'first_name' => $order->billing_first_name,
                 'last_name'  => $order->billing_last_name,
                 'email'      => $order->billing_email,
             );
 
-            $blockpen_args = apply_filters( 'woocommerce_blockpen_args', $blockpen_args );
-
-            return $blockpen_args;
+            if (
+                sanitize_text_field( $blockpen_args['currency'] )   &&
+                sanitize_text_field( $blockpen_args['first_name'] ) &&
+                sanitize_text_field( $blockpen_args['last_name'] )  &&
+                sanitize_email( $blockpen_args['email'] )
+            ) {
+                $blockpen_args = apply_filters( 'woocommerce_blockpen_args', $blockpen_args );
+                return $blockpen_args;
+            }
+            else 
+                throw new \Exception("Sanitize inputs");
         }
 
 
@@ -182,6 +185,9 @@ function blockpen_paygate_load() {
                         
             $blockpen_args = $this->get_blockpen_args( $order );
             $blockpen_args["total"] = $order->total;
+
+            if ( ! isset($blockpen_args['total']) ) throw new \Exception("Undefined amount to pay");
+
             $blockpen_adr .= http_build_query( $blockpen_args, '', '&' );
 
             return $blockpen_adr;
@@ -307,41 +313,38 @@ function blockpen_paygate_load() {
 
             $posted = stripslashes_deep( $posted );
 
-            if (!empty($_POST['invoice']) && !empty($_POST['custom'])) {
-                $order = $this->get_blockpen_order( $posted );
+            $order = $this->get_blockpen_order( $posted );
 
-                $this->log->add( 'blockpen', 'Order #'.$order->id.' payment status: ' . $posted['status_text'] );
-                $order->add_order_note('blockpen.tech Payment Status: '.$posted['status_text']);
+            $this->log->add( 'blockpen', 'Order #'.$order->id.' payment status: ' . $posted['status_text'] );
+            $order->add_order_note('blockpen.tech Payment Status: '.$posted['status_text']);
 
-                echo  $posted['txn_id'];
-                if ( $order->status != 'completed' && get_post_meta( $order->id, 'blockpen payment complete', true ) != 'Yes' ) {
-                    if ( ! empty( $posted['txn_id'] ) )
-                        update_post_meta( $order->id, 'Transaction ID', $posted['txn_id'] );
+            if ( $order->status != 'completed' && get_post_meta( $order->id, 'blockpen payment complete', true ) != 'Yes' ) {
+                if ( ! empty( $posted['txn_id'] ) )
+                    update_post_meta( $order->id, 'Transaction ID', $posted['txn_id'] );
 
-                    if ( ! empty( $posted['first_name'] ) && sanitize_text_field( $posted['first_name'] ) )
-                        update_post_meta( $order->id, 'Payer first name', $posted['first_name'] );
+                if ( ! empty( $posted['first_name'] ) && sanitize_text_field( $posted['first_name'] ) )
+                    update_post_meta( $order->id, 'Payer first name', $posted['first_name'] );
 
-                    if ( ! empty( $posted['last_name'] ) && sanitize_text_field( $posted['last_name'] ) )
-                        update_post_meta( $order->id, 'Payer last name', $posted['last_name'] );
+                if ( ! empty( $posted['last_name'] ) && sanitize_text_field( $posted['last_name'] ) )
+                    update_post_meta( $order->id, 'Payer last name', $posted['last_name'] );
 
-                    if ( ! empty( $posted['email'] ) && is_email( $posted['email'] ) )
-                        update_post_meta( $order->id, 'Payer email', $posted['email'] );
+                if ( ! empty( $posted['email'] ) && is_email( $posted['email'] ) )
+                    update_post_meta( $order->id, 'Payer email', $posted['email'] );
 
-                    if ($posted['status'] >= 100 || $posted['status'] == 2 || ($this->allow_zero_confirm && $posted['status'] >= 0 && $posted['received_confirms'] > 0 && $posted['received_amount'] >= $posted['amount2'])) {
-                        print "Marking complete\n";
-                        update_post_meta( $order->id, 'blockpen payment complete', 'Yes' );
-                        $order->payment_complete();
-                    } else if ($posted['status'] < 0) {
-                        print "Marking cancelled\n";
-                        $order->update_status('cancelled', 'blockpen.tech Payment cancelled/timed out: '.$posted['status_text']);
-                        mail( get_option( 'admin_email' ), sprintf( __( 'Payment for order %s cancelled/timed out', 'woocommerce' ), $order->get_order_number() ), $posted['status_text'] );
-                    } else {
-                        print "Marking pending\n";
-                        $order->update_status('pending', 'blockpen.tech Payment pending: '.$posted['status_text']);
-                    }
+                if ($posted['status'] >= 100 || $posted['status'] == 2 || ($this->allow_zero_confirm && $posted['status'] >= 0 && $posted['received_confirms'] > 0 && $posted['received_amount'] >= $posted['amount2'])) {
+                    print "Marking complete\n";
+                    update_post_meta( $order->id, 'blockpen payment complete', 'Yes' );
+                    $order->payment_complete();
+                } else if ($posted['status'] < 0) {
+                    print "Marking cancelled\n";
+                    $order->update_status('cancelled', 'blockpen.tech Payment cancelled/timed out: '.$posted['status_text']);
+                    mail( get_option( 'admin_email' ), sprintf( __( 'Payment for order %s cancelled/timed out', 'woocommerce' ), $order->get_order_number() ), $posted['status_text'] );
+                } else {
+                    print "Marking pending\n";
+                    $order->update_status('pending', 'blockpen.tech Payment pending: '.$posted['status_text']);
                 }
-                die("IPN OK");
             }
+            die("IPN OK");
         }
 
         /**
