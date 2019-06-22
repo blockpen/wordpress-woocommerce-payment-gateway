@@ -4,7 +4,7 @@
  * Plugin Name: Blockpen Payment Gateway
  * Plugin URI:  https://commerce.blockpen.tech
  * Description: A secured and decentralized (as it should be) payment gateway that allows your consumers to pay with cryptocurrencies.
- * Version:     0.0.6
+ * Version:     0.0.7
  * Author:      Blockpen
  * Author URI:  https://blockpen.tech/
  */
@@ -22,7 +22,6 @@ function blockpen_paygate_install() {
     flush_rewrite_rules();
 }
 register_activation_hook( __FILE__, 'blockpen_paygate_install' );
-
 
 function blockpen_paygate_deactivation() {
     unregister_post_type( 'book' );
